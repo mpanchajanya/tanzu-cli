@@ -315,6 +315,121 @@ var _ = Describe("GetInstalledPlugins (both standalone and context plugins)", fu
 			Expect(installedPlugins).Should(ContainElement(*pd4))
 		})
 	})
+	Context("with a catalog cache from an older CLI version", func() {
+		BeforeEach(func() {
+			cdir, err = os.MkdirTemp("", "test-catalog-cache")
+			Expect(err).ToNot(HaveOccurred())
+			common.DefaultCacheDir = cdir
+
+			err = copy.Copy(
+				filepath.Join("..", "fakes", "cache", "catalog_v0.29.yaml"),
+				// filepath.Join("..", "fakes", "cache", "catalog.yaml"),
+				filepath.Join(common.DefaultCacheDir, "catalog.yaml"))
+			Expect(err).To(BeNil(), "Error while copying tanzu catalog file for testing")
+
+			configFile, err = os.CreateTemp("", "config")
+			Expect(err).To(BeNil())
+			err = copy.Copy(filepath.Join("..", "fakes", "config", "tanzu_config.yaml"), configFile.Name())
+			Expect(err).To(BeNil(), "Error while copying tanzu config file for testing")
+			os.Setenv("TANZU_CONFIG", configFile.Name())
+
+			configFileNG, err = os.CreateTemp("", "config_ng")
+			Expect(err).To(BeNil())
+			os.Setenv("TANZU_CONFIG_NEXT_GEN", configFileNG.Name())
+			err = copy.Copy(filepath.Join("..", "fakes", "config", "tanzu_config_ng.yaml"), configFileNG.Name())
+			Expect(err).To(BeNil(), "Error while coping tanzu config-ng file for testing")
+		})
+		AfterEach(func() {
+			os.RemoveAll(cdir)
+			os.Unsetenv("TANZU_CONFIG")
+			os.Unsetenv("TANZU_CONFIG_NEXT_GEN")
+			os.RemoveAll(configFile.Name())
+			os.RemoveAll(configFileNG.Name())
+		})
+
+		It("should find the installed server plugin", func() {
+			installedServerPlugins, err := GetInstalledServerPlugins()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(installedServerPlugins)).To(Equal(2))
+			Expect(installedServerPlugins).Should(ContainElement(
+				cli.PluginInfo{
+					Name:                         "cluster",
+					Description:                  "cluster functionality",
+					Version:                      "v0.0.1",
+					BuildSHA:                     "01234567",
+					Digest:                       "",
+					Group:                        plugin.SystemCmdGroup,
+					DocURL:                       "",
+					Hidden:                       false,
+					CompletionType:               0,
+					CompletionArgs:               nil,
+					CompletionCommand:            "",
+					Aliases:                      nil,
+					InstallationPath:             "/Users/test/Library/Application Support/tanzu-cli/cluster/v0.0.1_2ddee7c0a8ecbef610a651bc8d83657fd3438f1038e817b4a7d44f2d0b3bac72_kubernetes",
+					Discovery:                    "test-mc",
+					Scope:                        "",
+					Status:                       "",
+					DiscoveredRecommendedVersion: "v0.0.1",
+					Target:                       types.TargetK8s,
+					DefaultFeatureFlags:          nil,
+					PostInstallHook:              nil,
+				},
+			))
+			Expect(installedServerPlugins).Should(ContainElement(
+				cli.PluginInfo{
+					Name:                         "iam",
+					Description:                  "IAM Policies for tmc resources",
+					Version:                      "v0.0.1",
+					BuildSHA:                     "01234567",
+					Digest:                       "",
+					Group:                        plugin.ManageCmdGroup,
+					DocURL:                       "",
+					Hidden:                       false,
+					CompletionType:               0,
+					CompletionArgs:               nil,
+					CompletionCommand:            "",
+					Aliases:                      nil,
+					InstallationPath:             "/Users/test/Library/Application Support/tanzu-cli/iam/v0.0.1_2de17ef20dfb00dd8bcf5cb61cbce3cbddcd0a71fba858817343188c093cef7c_mission-control",
+					Discovery:                    "test-tmc-context",
+					Scope:                        "",
+					Status:                       "",
+					DiscoveredRecommendedVersion: "v0.0.1",
+					Target:                       types.TargetTMC,
+					DefaultFeatureFlags:          nil,
+					PostInstallHook:              nil,
+				},
+			))
+		})
+		It("should find the installed standalone plugin", func() {
+			installedStandalonePlugins, err := GetInstalledStandalonePlugins()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(installedStandalonePlugins)).To(Equal(1))
+			Expect(installedStandalonePlugins[0]).Should(Equal(
+				cli.PluginInfo{
+					Name:                         "isolated-cluster",
+					Description:                  "Prepopulating images/bundle for internet-restricted environments",
+					Version:                      "v0.29.0",
+					BuildSHA:                     "e403941f7",
+					Digest:                       "",
+					Group:                        plugin.RunCmdGroup,
+					DocURL:                       "",
+					Hidden:                       false,
+					CompletionType:               0,
+					CompletionArgs:               nil,
+					CompletionCommand:            "",
+					Aliases:                      nil,
+					InstallationPath:             "/Users/test/Library/Application Support/tanzu-cli/isolated-cluster/v0.29.0_78d8b432ca369a161fca39e777aeb81fe63c2ba8b8dd25b1b8270eeab485a2ca_",
+					Discovery:                    "",
+					Scope:                        "",
+					Status:                       "",
+					DiscoveredRecommendedVersion: "v0.29.0",
+					Target:                       types.TargetUnknown,
+					DefaultFeatureFlags:          nil,
+					PostInstallHook:              nil,
+				},
+			))
+		})
+	})
 })
 
 func fakeInstallPlugin(contextName, pluginName string, target types.Target) (*cli.PluginInfo, error) {
